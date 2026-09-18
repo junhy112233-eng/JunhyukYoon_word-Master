@@ -1,0 +1,10 @@
+{
+  "name": "Word Master",
+  "description": "초등 3~5학년을 위한 3인칭 단수(-s)와 과거형(-ed) 동사변형 AI 주문 액션 문법 게임",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
