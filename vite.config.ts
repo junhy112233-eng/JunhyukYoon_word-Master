@@ -6,6 +6,13 @@ import {defineConfig} from 'vite';
 export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
+    envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
+    define: {
+      'process.env.NEXT_PUBLIC_GOOGLE_SCRIPT_URL': JSON.stringify(
+        process.env.NEXT_PUBLIC_GOOGLE_SCRIPT_URL ||
+        'https://script.google.com/macros/s/AKfycbykxjMchfcRBKx2-fWAREFO7R0bRvRW8_gFeJsd6KChEbCPAe-X3RYCZh9s2K9hjoEhwg/exec'
+      ),
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

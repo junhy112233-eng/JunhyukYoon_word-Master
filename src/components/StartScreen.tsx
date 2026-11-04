@@ -2,16 +2,20 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { HeroCharacter, AICommanderAvatar } from './GameCharacters';
 import { GameMode } from '../types';
-import { Sparkles, Play, Zap, Clock, ShieldAlert, BookOpen, Volume2 } from 'lucide-react';
+import { Sparkles, Play, Zap, Clock, ShieldAlert, BookOpen, Volume2, FileSpreadsheet } from 'lucide-react';
 import { soundManager, speakEnglish } from '../utils/audio';
+import { getCurrentPlayCount, getSheetsWebAppUrl } from '../utils/sheetLogger';
 
 interface StartScreenProps {
   onSelectMode: (mode: GameMode) => void;
+  onOpenSheetModal: () => void;
 }
 
-export const StartScreen: React.FC<StartScreenProps> = ({ onSelectMode }) => {
+export const StartScreen: React.FC<StartScreenProps> = ({ onSelectMode, onOpenSheetModal }) => {
   const [showModeSelection, setShowModeSelection] = useState<boolean>(false);
   const [showGuideModal, setShowGuideModal] = useState<boolean>(false);
+  const playCount = getCurrentPlayCount();
+  const hasSheetUrl = Boolean(getSheetsWebAppUrl());
 
   const handleStartClick = () => {
     soundManager.playClick();
@@ -81,18 +85,41 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onSelectMode }) => {
         {/* Word Hero with increased size and without '초보 마법사' badge */}
         <HeroCharacter state="idle" size="lg" showTierBadge={false} />
 
-        {/* 30-second how-to-play pill */}
-        <button
-          id="how-to-play-btn"
-          onClick={() => {
-            soundManager.playClick();
-            setShowGuideModal(true);
-          }}
-          className="mt-3 flex items-center gap-1 text-xs font-bold text-amber-300 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 px-3 py-1 rounded-full transition-all active:scale-95 shadow-sm"
-        >
-          <BookOpen className="w-3.5 h-3.5" />
-          <span>30초 게임 방법 보기</span>
-        </button>
+        {/* Pills: How-to-play & Google Sheets Sync */}
+        <div className="mt-3 flex items-center gap-2 flex-wrap justify-center">
+          <button
+            id="how-to-play-btn"
+            onClick={() => {
+              soundManager.playClick();
+              setShowGuideModal(true);
+            }}
+            className="flex items-center gap-1 text-xs font-bold text-amber-300 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 px-3 py-1 rounded-full transition-all active:scale-95 shadow-sm"
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>30초 게임 방법</span>
+          </button>
+
+          <button
+            id="google-sheet-settings-btn"
+            onClick={() => {
+              soundManager.playClick();
+              onOpenSheetModal();
+            }}
+            className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full transition-all active:scale-95 shadow-sm border ${
+              hasSheetUrl
+                ? 'text-emerald-300 bg-emerald-500/20 hover:bg-emerald-500/30 border-emerald-400/40'
+                : 'text-teal-200 bg-slate-800/80 hover:bg-slate-700/80 border-teal-400/30'
+            }`}
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+            <span>구글 시트 연동</span>
+            {playCount > 0 && (
+              <span className="text-[10px] bg-emerald-400/20 text-emerald-300 font-extrabold px-1.5 py-0.2 rounded-full ml-0.5">
+                {playCount}회
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Bottom Section: [게임 시작] or Mode Selection Cards */}

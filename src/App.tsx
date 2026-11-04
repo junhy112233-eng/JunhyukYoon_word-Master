@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { GameMode, Question, UserAnswerRecord, BattleState } from './types';
+import { GameMode, Question, UserAnswerRecord, BattleState, SentenceTapStat } from './types';
 import { generateQuizSession } from './data/questions';
 import { soundManager, speakEnglish, stopSpeech } from './utils/audio';
 import { StartScreen } from './components/StartScreen';
@@ -7,6 +7,8 @@ import { BattleStage } from './components/BattleStage';
 import { QuestionCard } from './components/QuestionCard';
 import { AICommanderFeedback } from './components/AICommanderFeedback';
 import { ResultScreen } from './components/ResultScreen';
+import { GoogleSheetSyncModal } from './components/GoogleSheetSyncModal';
+import { recordGameSession, GamePlayLog } from './utils/sheetLogger';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<'start' | 'game' | 'result'>('start');
@@ -22,6 +24,8 @@ export default function App() {
   const [isEvaluating, setIsEvaluating] = useState<boolean>(false);
   const [spellText, setSpellText] = useState<string>('');
   const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [isSheetModalOpen, setIsSheetModalOpen] = useState<boolean>(false);
+  const [latestLog, setLatestLog] = useState<GamePlayLog | null>(null);
 
   // Toggle audio mute
   const handleToggleMute = () => {
@@ -54,7 +58,7 @@ export default function App() {
   const currentQuestion = questions[currentIndex];
 
   // Handle user answer submission (either touch button or voice recognition)
-  const handleSelectOption = (option: string, method: 'touch' | 'voice') => {
+  const handleSelectOption = (option: string, method: 'touch' | 'voice', tapCount: number = 1) => {
     if (isEvaluating || !currentQuestion) return;
 
     setIsEvaluating(true);
@@ -63,12 +67,13 @@ export default function App() {
 
     const isCorrect = option.trim().toLowerCase() === currentQuestion.correctVerb.trim().toLowerCase();
 
-    // Record answer
+    // Record answer with tap count for this sentence
     const newRecord: UserAnswerRecord = {
       question: currentQuestion,
       selectedOption: option,
       isCorrect,
-      inputMethod: method
+      inputMethod: method,
+      tapCount: Math.max(1, tapCount)
     };
     const nextRecords = [...records, newRecord];
     setRecords(nextRecords);
@@ -128,6 +133,26 @@ export default function App() {
       // Finished all 10 questions!
       soundManager.playVictoryFanfare();
       setCurrentScreen('result');
+
+      // Record to Google Sheet and local history (timestamp, play_count, correct_count, wrong_count, avg_taps, sentence_taps)
+      const finalRecords = latestRecords;
+      const correctCount = finalRecords.filter(r => r.isCorrect).length;
+      const wrongCount = finalRecords.filter(r => !r.isCorrect).length;
+
+      // Map sentence tap frequencies
+      const sentenceTapStats: SentenceTapStat[] = finalRecords.map((r, idx) => ({
+        sentenceId: r.question.id,
+        sentenceIndex: idx + 1,
+        sentenceText: `${r.question.sentenceBefore} [${r.question.correctVerb}] ${r.question.sentenceAfter}`.trim(),
+        tapCount: r.tapCount || 1,
+        isCorrect: r.isCorrect,
+        selectedOption: r.selectedOption,
+        correctVerb: r.question.correctVerb
+      }));
+
+      recordGameSession(correctCount, wrongCount, mode, sentenceTapStats).then((res) => {
+        setLatestLog(res.log);
+      });
     }
   };
 
@@ -146,7 +171,10 @@ export default function App() {
     <main className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-2 sm:p-4 text-slate-100">
       <div className="w-full max-w-md flex flex-col">
         {currentScreen === 'start' && (
-          <StartScreen onSelectMode={handleStartGame} />
+          <StartScreen
+            onSelectMode={handleStartGame}
+            onOpenSheetModal={() => setIsSheetModalOpen(true)}
+          />
         )}
 
         {currentScreen === 'game' && currentQuestion && (
@@ -187,11 +215,19 @@ export default function App() {
           <ResultScreen
             records={records}
             mode={mode}
+            latestLog={latestLog}
             onRetry={handleRetry}
             onHome={handleHome}
+            onOpenSheetModal={() => setIsSheetModalOpen(true)}
           />
         )}
       </div>
+
+      {/* Google Sheet Integration & History Modal */}
+      <GoogleSheetSyncModal
+        isOpen={isSheetModalOpen}
+        onClose={() => setIsSheetModalOpen(false)}
+      />
     </main>
   );
 }

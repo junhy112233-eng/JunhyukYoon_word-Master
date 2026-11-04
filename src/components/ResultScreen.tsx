@@ -1,21 +1,26 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { UserAnswerRecord, GameMode } from '../types';
-import { Star, RotateCcw, Home, Volume2, CheckCircle, AlertTriangle, Trophy, Sparkles } from 'lucide-react';
+import { Star, RotateCcw, Home, Volume2, CheckCircle, AlertTriangle, Trophy, Sparkles, FileSpreadsheet } from 'lucide-react';
 import { soundManager, speakEnglish } from '../utils/audio';
+import { GamePlayLog, getSheetsWebAppUrl } from '../utils/sheetLogger';
 
 interface ResultScreenProps {
   records: UserAnswerRecord[];
   mode: GameMode;
+  latestLog?: GamePlayLog | null;
   onRetry: () => void;
   onHome: () => void;
+  onOpenSheetModal?: () => void;
 }
 
 export const ResultScreen: React.FC<ResultScreenProps> = ({
   records,
   mode,
+  latestLog,
   onRetry,
-  onHome
+  onHome,
+  onOpenSheetModal
 }) => {
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
 
@@ -50,6 +55,10 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
       setPlayingAudioId(null);
     });
   };
+
+  const totalTaps = records.reduce((acc, r) => acc + (r.tapCount || 1), 0);
+  const avgTaps = records.length > 0 ? (totalTaps / records.length).toFixed(1) : '1.0';
+  const [showTapDetails, setShowTapDetails] = useState(false);
 
   return (
     <div id="result-screen" className="w-full flex flex-col items-center max-w-lg mx-auto bg-white rounded-3xl p-5 sm:p-6 shadow-xl border border-slate-200">
@@ -105,6 +114,127 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
         <span className="text-xs font-semibold text-slate-600">
           총 {totalQuestions}문제 중 <strong className="text-indigo-700 font-extrabold">{correctCount}문제 정답</strong>
         </span>
+      </div>
+
+      {/* Google Sheets Record Card (timestamp, play_count, correct_count, wrong_count, avg_taps, sentence_taps) */}
+      <div className="w-full bg-emerald-50/70 border border-emerald-200/90 rounded-2xl p-3 mb-4 flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 font-black text-xs text-emerald-900">
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+            <span>구글 시트 연동 학습 데이터</span>
+          </div>
+          {onOpenSheetModal && (
+            <button
+              onClick={() => {
+                soundManager.playClick();
+                onOpenSheetModal();
+              }}
+              className="text-[10px] font-bold text-emerald-700 bg-white hover:bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-lg transition-colors shadow-xs"
+            >
+              시트 연동 설정 / 기록
+            </button>
+          )}
+        </div>
+
+        {/* Google Sheet Columns Display (timestamp, play_count, correct_count, wrong_count, avg_taps) */}
+        <div className="grid grid-cols-5 gap-1 text-center bg-white p-2 rounded-xl border border-emerald-100 text-[10px]">
+          <div className="flex flex-col">
+            <span className="text-[9px] text-slate-400 font-mono">timestamp</span>
+            <span className="font-bold text-slate-700 truncate mt-0.5" title={latestLog?.timestamp}>
+              {latestLog ? latestLog.timestamp.split(' ')[1] || latestLog.timestamp : '기록 중'}
+            </span>
+          </div>
+          <div className="flex flex-col border-l border-slate-100">
+            <span className="text-[9px] text-slate-400 font-mono">play_count</span>
+            <span className="font-black text-indigo-700 text-xs mt-0.5">
+              {latestLog ? `${latestLog.play_count}회` : '-'}
+            </span>
+          </div>
+          <div className="flex flex-col border-l border-slate-100">
+            <span className="text-[9px] text-slate-400 font-mono">correct_count</span>
+            <span className="font-black text-emerald-600 text-xs mt-0.5">
+              {correctCount}
+            </span>
+          </div>
+          <div className="flex flex-col border-l border-slate-100">
+            <span className="text-[9px] text-slate-400 font-mono">wrong_count</span>
+            <span className="font-black text-rose-600 text-xs mt-0.5">
+              {wrongRecords.length}
+            </span>
+          </div>
+          <div className="flex flex-col border-l border-slate-100 bg-emerald-50/50 rounded-md">
+            <span className="text-[9px] text-emerald-700 font-mono font-bold">avg_taps</span>
+            <span className="font-black text-emerald-700 text-xs mt-0.5">
+              {avgTaps}회
+            </span>
+          </div>
+        </div>
+
+        {/* Per-Sentence Tap Frequency Summary */}
+        <div className="bg-white/80 border border-emerald-100 rounded-xl p-2 flex flex-col gap-1.5">
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="font-bold text-slate-700">
+              📊 각 문장별 탭 빈도 (총 {totalTaps}회 탭 / 평균 {avgTaps}회)
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowTapDetails(!showTapDetails)}
+              className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold underline cursor-pointer"
+            >
+              {showTapDetails ? '상세 접기 ▲' : '문장별 상세 보기 ▼'}
+            </button>
+          </div>
+
+          {/* Quick chip overview */}
+          <div className="flex flex-wrap gap-1">
+            {records.map((r, idx) => (
+              <span
+                key={idx}
+                className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border ${
+                  r.isCorrect
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                    : 'bg-rose-50 text-rose-800 border-rose-200'
+                }`}
+                title={`${idx + 1}번 문장: ${r.tapCount || 1}회 탭 (${r.isCorrect ? '정답' : '오답'})`}
+              >
+                Q{idx + 1}: {r.tapCount || 1}회
+              </span>
+            ))}
+          </div>
+
+          {/* Expanded Sentence Tap Details */}
+          {showTapDetails && (
+            <div className="mt-1 flex flex-col gap-1 max-h-40 overflow-y-auto text-[10px] border-t border-slate-100 pt-1.5">
+              {records.map((r, idx) => (
+                <div key={idx} className="flex items-center justify-between py-0.5 px-1 bg-slate-50/70 rounded">
+                  <span className="truncate max-w-[240px] text-slate-700">
+                    <strong className="text-slate-800">{idx + 1}.</strong> {r.question.sentenceBefore} [{r.question.correctVerb}] {r.question.sentenceAfter}
+                  </span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="font-black text-indigo-700">{r.tapCount || 1}회 탭</span>
+                    <span className={`text-[9px] font-bold ${r.isCorrect ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {r.isCorrect ? '정답' : '오답'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="text-[10px] flex items-center justify-between px-0.5">
+          {latestLog?.synced ? (
+            <span className="flex items-center gap-1 text-emerald-700 font-bold">
+              <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+              구글 시트에 성공적으로 저장되었습니다! (평균 탭: {avgTaps}회)
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 text-slate-600 font-medium">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+              {getSheetsWebAppUrl() ? '구글 시트 전송 중...' : '웹 앱 URL을 설정하면 구글 시트에 실시간 자동 기록됩니다.'}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Frequent Mistake Grammar Analysis */}

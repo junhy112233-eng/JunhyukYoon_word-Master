@@ -9,7 +9,7 @@ interface QuestionCardProps {
   question: Question;
   selectedOption: string | null;
   isEvaluating: boolean;
-  onSelectOption: (option: string, method: 'touch' | 'voice') => void;
+  onSelectOption: (option: string, method: 'touch' | 'voice', tapCount: number) => void;
 }
 
 export const QuestionCard: React.FC<QuestionCardProps> = ({
@@ -23,17 +23,23 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   const [speechStatus, setSpeechStatus] = useState<SpeechStatus>('idle');
   const [interimSpoken, setInterimSpoken] = useState<string>('');
   const [micCancelFn, setMicCancelFn] = useState<(() => void) | null>(null);
+  const [tapCount, setTapCount] = useState<number>(0);
 
-  // Stop mic if question changes
+  // Stop mic and reset taps if question changes
   useEffect(() => {
     setShowHint(false);
     setSpeechStatus('idle');
     setInterimSpoken('');
+    setTapCount(0);
     if (micCancelFn) {
       micCancelFn();
       setMicCancelFn(null);
     }
   }, [question.id]);
+
+  const incrementTap = () => {
+    setTapCount(prev => prev + 1);
+  };
 
   // Clean up mic on unmount
   useEffect(() => {
@@ -44,6 +50,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
 
   // Read the full sentence
   const handlePlayFullSentence = () => {
+    incrementTap();
     soundManager.playClick();
     setIsPlayingSentenceAudio(true);
     // Replace blank with the correct verb for natural listening
@@ -56,6 +63,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   // Read single option word pronunciation
   const handlePlayWordAudio = (e: React.MouseEvent, word: string) => {
     e.stopPropagation();
+    incrementTap();
     soundManager.playClick();
     speakEnglish(word);
   };
@@ -63,6 +71,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   // Toggle voice recognition
   const handleToggleMic = () => {
     if (isEvaluating) return;
+    incrementTap();
 
     if (speechStatus === 'listening') {
       soundManager.playMicBeep('stop');
@@ -87,7 +96,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         if (matched) {
           setSpeechStatus('matched');
           setInterimSpoken(matched);
-          onSelectOption(matched, 'voice');
+          onSelectOption(matched, 'voice', Math.max(1, tapCount + 1));
         } else if (fullTranscript) {
           setSpeechStatus('no_match');
           setInterimSpoken(`"${fullTranscript}" (다시 말해보세요)`);
@@ -121,10 +130,15 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
       {/* Sentence with Blank & Speaker Button */}
       <div className="w-full flex flex-col items-center bg-indigo-50/70 border-2 border-indigo-100 rounded-2xl p-4 sm:p-5 mb-3 relative">
         <div className="flex items-center justify-between w-full mb-2">
-          <span className="inline-flex items-center gap-1 text-xs font-bold text-indigo-700 bg-indigo-200/60 px-2.5 py-0.5 rounded-full">
-            <Sparkles className="w-3 h-3 text-indigo-600" />
-            주문 영문장
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span className="inline-flex items-center gap-1 text-xs font-bold text-indigo-700 bg-indigo-200/60 px-2.5 py-0.5 rounded-full">
+              <Sparkles className="w-3 h-3 text-indigo-600" />
+              주문 영문장
+            </span>
+            <span className="text-[10px] font-semibold text-slate-500 bg-white/80 border border-indigo-100 px-2 py-0.5 rounded-full">
+              탭 빈도: <strong className="text-indigo-600">{tapCount}회</strong>
+            </span>
+          </div>
 
           {/* Speaker Button: Listen to sentence */}
           <button
@@ -164,7 +178,10 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         <div className="mt-2.5 flex flex-col items-center">
           <button
             id="hint-toggle-btn"
-            onClick={() => setShowHint(!showHint)}
+            onClick={() => {
+              incrementTap();
+              setShowHint(!showHint);
+            }}
             className="flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-indigo-600 transition-colors py-0.5"
           >
             <HelpCircle className="w-3.5 h-3.5" />
@@ -222,7 +239,9 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                 disabled={isEvaluating}
                 onClick={() => {
                   soundManager.playClick();
-                  onSelectOption(option, 'touch');
+                  const finalTaps = tapCount + 1;
+                  setTapCount(finalTaps);
+                  onSelectOption(option, 'touch', finalTaps);
                 }}
                 whileHover={!isEvaluating ? { scale: 1.03 } : {}}
                 whileTap={!isEvaluating ? { scale: 0.97 } : {}}

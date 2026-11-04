@@ -16,11 +16,22 @@ export interface Question {
   recastSentence: string;
 }
 
+export interface SentenceTapStat {
+  sentenceId: string;
+  sentenceIndex: number;
+  sentenceText: string;
+  tapCount: number;
+  isCorrect: boolean;
+  selectedOption: string;
+  correctVerb: string;
+}
+
 export interface UserAnswerRecord {
   question: Question;
   selectedOption: string;
   isCorrect: boolean;
   inputMethod: 'touch' | 'voice';
+  tapCount?: number;
 }
 
 export type BattleState = 'idle' | 'hero_attacking' | 'monster_hit' | 'monster_attacking' | 'hero_hurt' | 'victory';
